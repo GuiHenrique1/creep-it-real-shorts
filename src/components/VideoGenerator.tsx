@@ -8,6 +8,7 @@ import { Play, Download, Wand2, RefreshCw } from "lucide-react";
 import StoryPreview from "./StoryPreview";
 import VideoPreview from "./VideoPreview";
 import { generateHorrorStory, generateHashtags } from "@/utils/storyGenerator";
+import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { toast } from "sonner";
 
 interface VideoGeneratorProps {
@@ -19,7 +20,13 @@ interface VideoGeneratorProps {
 const VideoGenerator = ({ selectedStyle, isGenerating, setIsGenerating }: VideoGeneratorProps) => {
   const [currentStory, setCurrentStory] = useState<StoryStructure | null>(null);
   const [currentHashtags, setCurrentHashtags] = useState<string[]>([]);
-  const [videoGenerated, setVideoGenerated] = useState(false);
+  
+  const { 
+    isGenerating: isGeneratingVideo, 
+    generatedVideo, 
+    generateVideo, 
+    downloadVideo 
+  } = useVideoGeneration();
 
   const handleGenerateStory = async () => {
     setIsGenerating(true);
@@ -30,9 +37,9 @@ const VideoGenerator = ({ selectedStyle, isGenerating, setIsGenerating }: VideoG
       setCurrentStory(story);
       setCurrentHashtags(hashtags);
       
-      toast.success("Horror story generated successfully!");
+      toast.success("História de terror gerada com sucesso!");
     } catch (error) {
-      toast.error("Failed to generate story. Please try again.");
+      toast.error("Falha ao gerar história. Tente novamente.");
     } finally {
       setIsGenerating(false);
     }
@@ -41,21 +48,19 @@ const VideoGenerator = ({ selectedStyle, isGenerating, setIsGenerating }: VideoG
   const handleGenerateVideo = async () => {
     if (!currentStory) return;
     
-    setIsGenerating(true);
     try {
-      // Simulate video generation process
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      setVideoGenerated(true);
-      toast.success("Video generated successfully! Ready for download.");
+      await generateVideo(currentStory, selectedStyle);
     } catch (error) {
-      toast.error("Failed to generate video. Please try again.");
-    } finally {
-      setIsGenerating(false);
+      // Erro já tratado no hook
     }
   };
 
   const handleDownloadVideo = () => {
-    toast.success("Video download started! (Demo mode)");
+    if (generatedVideo) {
+      downloadVideo(generatedVideo.url, `horror-video-${Date.now()}.mp4`);
+    } else {
+      toast.error("Nenhum vídeo disponível para download");
+    }
   };
 
   return (
@@ -64,7 +69,7 @@ const VideoGenerator = ({ selectedStyle, isGenerating, setIsGenerating }: VideoG
         <CardHeader>
           <CardTitle className="text-2xl text-white flex items-center gap-2">
             <Wand2 className="w-6 h-6 text-red-400" />
-            Horror Video Generation
+            Geração de Vídeo de Terror
           </CardTitle>
         </CardHeader>
         
@@ -72,7 +77,7 @@ const VideoGenerator = ({ selectedStyle, isGenerating, setIsGenerating }: VideoG
           <div className="flex flex-wrap gap-4">
             <Button 
               onClick={handleGenerateStory}
-              disabled={isGenerating}
+              disabled={isGenerating || isGeneratingVideo}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               {isGenerating ? (
@@ -80,35 +85,63 @@ const VideoGenerator = ({ selectedStyle, isGenerating, setIsGenerating }: VideoG
               ) : (
                 <Wand2 className="w-4 h-4 mr-2" />
               )}
-              Generate New Story
+              Gerar Nova História
             </Button>
             
             {currentStory && (
               <Button 
                 onClick={handleGenerateVideo}
-                disabled={isGenerating || !currentStory}
+                disabled={isGenerating || isGeneratingVideo || !currentStory}
                 variant="outline"
                 className="border-red-500 text-red-400 hover:bg-red-500 hover:text-white"
               >
-                {isGenerating ? (
+                {isGeneratingVideo ? (
                   <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Play className="w-4 h-4 mr-2" />
                 )}
-                Generate Video
+                {isGeneratingVideo ? 'Gerando Vídeo...' : 'Gerar Vídeo'}
               </Button>
             )}
             
-            {videoGenerated && (
+            {generatedVideo && (
               <Button 
                 onClick={handleDownloadVideo}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <Download className="w-4 h-4 mr-2" />
-                Download Video
+                Download Vídeo
               </Button>
             )}
           </div>
+
+          {isGeneratingVideo && (
+            <div className="bg-gray-700/50 border border-gray-600 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <RefreshCw className="w-5 h-5 text-red-400 animate-spin" />
+                <div>
+                  <p className="text-white font-semibold">Gerando seu vídeo de terror...</p>
+                  <p className="text-gray-400 text-sm">Isso pode levar alguns minutos. Por favor, aguarde.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {generatedVideo && (
+            <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
+                <div>
+                  <p className="text-green-400 font-semibold">Vídeo gerado com sucesso!</p>
+                  <p className="text-gray-300 text-sm">
+                    Duração: {Math.floor(generatedVideo.duration / 60)}:{(generatedVideo.duration % 60).toString().padStart(2, '0')} | 
+                    Resolução: {generatedVideo.resolution} | 
+                    Tamanho: {generatedVideo.size}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -116,13 +149,13 @@ const VideoGenerator = ({ selectedStyle, isGenerating, setIsGenerating }: VideoG
         <Tabs defaultValue="story" className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-gray-800 border-gray-700">
             <TabsTrigger value="story" className="data-[state=active]:bg-red-600">
-              Story Preview
+              Prévia da História
             </TabsTrigger>
             <TabsTrigger value="video" className="data-[state=active]:bg-red-600">
-              Video Preview
+              Prévia do Vídeo
             </TabsTrigger>
             <TabsTrigger value="settings" className="data-[state=active]:bg-red-600">
-              Export Settings
+              Configurações de Exportação
             </TabsTrigger>
           </TabsList>
           
@@ -138,32 +171,33 @@ const VideoGenerator = ({ selectedStyle, isGenerating, setIsGenerating }: VideoG
             <VideoPreview 
               story={currentStory}
               style={selectedStyle}
-              generated={videoGenerated}
+              generated={!!generatedVideo}
+              videoUrl={generatedVideo?.url}
             />
           </TabsContent>
           
           <TabsContent value="settings" className="mt-6">
             <Card className="bg-gray-800/50 border-gray-700">
               <CardHeader>
-                <CardTitle className="text-white">Export Settings</CardTitle>
+                <CardTitle className="text-white">Configurações de Exportação</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-gray-300">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <h4 className="font-semibold text-red-400">Video Format:</h4>
+                    <h4 className="font-semibold text-red-400">Formato do Vídeo:</h4>
                     <p>Vertical 9:16 (1080x1920)</p>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-red-400">Duration:</h4>
-                    <p>Up to 3 minutes (TikTok optimized)</p>
+                    <h4 className="font-semibold text-red-400">Duração:</h4>
+                    <p>Até 3 minutos (otimizado para TikTok)</p>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-red-400">Audio:</h4>
-                    <p>48kHz stereo with voice + background</p>
+                    <h4 className="font-semibold text-red-400">Áudio:</h4>
+                    <p>48kHz estéreo com voz + fundo</p>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-red-400">Subtitles:</h4>
-                    <p>Auto-synced with horror styling</p>
+                    <h4 className="font-semibold text-red-400">Legendas:</h4>
+                    <p>Auto-sincronizadas com estilo de terror</p>
                   </div>
                 </div>
               </CardContent>
